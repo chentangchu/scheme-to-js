@@ -16,3 +16,6 @@
       (car l)
       (list-ref-last (cdr l))))
 
+(define (tagged-expr? tag expr)
+    (and (pair? expr)
+         (eq? (car expr) tag)))

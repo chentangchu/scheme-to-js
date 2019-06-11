@@ -25,10 +25,7 @@
        (eval-expr?  (list-ref expr 2))))
 
 (define (expr-type expr)
-  (cond [(primitive-expr? expr)
-	 'primitive]
-	[(lambda-expr? expr)
-	 'lambda]
+  (cond [(lambda-expr? expr) 'lambda]
 	[else 'other]))
 
 (define (define-expr->js expr)
