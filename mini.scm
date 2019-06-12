@@ -4,20 +4,33 @@
 
 (define env (make-env))
 
+(set! env (enter-scope env))
+(set! env (encounter-symb env '= 'lambda))
+(set! env (encounter-symb env '+ 'lambda))
+(set! env (encounter-symb env '- 'lambda))
+(set! env (encounter-symb env '* 'lambda))
+(set! env (encounter-symb env '/ 'lambda))
+(set! env (encounter-symb env 'null? 'lambda))
+(set! env (encounter-symb env 'get 'lambda))
+(set! env (encounter-symb env 'car 'lambda))
+(set! env (encounter-symb env 'cdr 'lambda))
+(set! env (encounter-symb env 'console.log 'lambda))
+
 (define-syntax scheme->js
     (syntax-rules ()
         [(_ expr)
-         (scheme->js* (quote expr))]))
+         (emit-code (scheme->js* (quote expr)))]))
 
 (define (scheme->js* expr)
   (cond [(define-expr? expr) (define-expr->js expr)]
 	[(eval-expr? expr) (eval-expr->js expr)]
-	[else (error "Undefined expression type:" expr)]))
+	[else (error #f "error with scheme->js*:" expr)]))
 
 (define (emit-code js-code)
   (display js-code))
 
 (define (define-expr? expr)
+;  (display "define-expr? => ") (display expr) (display "\n" )
   (and (list? expr)
        (= (length expr) 3)
        (eq? 'define (list-ref expr 0))
@@ -29,23 +42,25 @@
 	[else 'other]))
 
 (define (define-expr->js expr)
+;  (display "define-expr->js ==> ") (display expr) (display "\n")
   (cond [(not (define-expr? expr))
-	 (error "Undefined expression type:" expr)]
+	 (error #f "error with define->js" expr)]
     	[else
-	  (set! env (encounter-symb env var (expr-type value)))
 	  (let* [(var     (list-ref expr 1))
 		 (value   (list-ref expr 2))]
-	    (emit-code 
-	      (string-append "let " (symbol->string var) " = "  (eval-expr->js value))))]))
+	    (set! env (encounter-symb env var (expr-type value)))
+	    (string-append "let " (symbol->string var) " = "  (eval-expr->js value)))]))
 
 (define (eval-expr? expr)
+;  (display "eval-expr? =>")(display expr) (display "\n")
   (or (primitive-expr? expr)
       (apply-expr? expr)
       (lambda-expr? expr)))
 
 (define (eval-expr->js expr) 
+;  (display "eval-expr->js ==> ") (display expr) (display "\n")
   (cond [(not (eval-expr? expr)) 
-	 (error "Undefined expression type:" expr)]
+	 (error #f "error with eval-expr->js:" expr)]
 	[(primitive-expr? expr)  (primitive-expr->js expr)]
 	[(lambda-expr? expr) (lambda-expr->js expr)]
 	[(apply-expr? expr) (apply-expr->js expr)]))
@@ -55,13 +70,14 @@
 
 (define (primitive-expr->js expr)
   (cond [(not (primitive-expr? expr))
-	 (error "Undefined expression type:" expr)]
-	[(boolean? expr) (emit-code (if expr "true" "false"))]
-        [(string? expr) (emit-code (string-append "\"" expr "\""))]
-        [(number? expr) (emit-code (number->string expr))]
-        [(symbol? expr) (emit-code (symbol->string expr))]))
+	 (error #f "error with primitive-expr->js:" expr)]
+	[(boolean? expr) (if expr "true" "false")]
+        [(string? expr) (string-append "\"" expr "\"")]
+        [(number? expr) (number->string expr)]
+        [(symbol? expr) (symbol->string expr)]))
 
 (define (lambda-expr? expr)
+;  (display "lambda-expr? ==> ") (display expr) (display "\n")
   (and (list? expr)
        (> (length expr) 2)
        (eq? 'lambda (list-ref expr 0))
@@ -74,35 +90,39 @@
       (string-join para-string-list ",")))
   (define (body-list->string body-list)
     (letrec [(body-segm-list (map scheme->js* body-list))
-	  (body-segm->js (lambda (string-list)
-			    (if (null? (cdr string-list))
-				(string-append "return " (car string-list) ";")
-				(string-append (car string-list) ";" 
-					       (body-segm->js (cdr string-list))))))]
+	     (body-segm->js (lambda (string-list)
+			      (if (null? (cdr string-list))
+				  ;(string-append "return " (car string-list) ";")
+				  (string-append "return " (car string-list))
+				  (string-append (car string-list) ";"
+						 (body-segm->js (cdr string-list))))))]
+;      (display "==>")(write body-list)(display "\n")
+;      (display "==>")(display body-segm-list)(display "\n")
       (body-segm->js body-segm-list)))
-
+;  (display "lambda-expr ==> ") (display expr) (display "\n")
   (set! env (enter-scope env))
-  (let* [(para-list (cadr expr))
-	 (body-list (cddr expr))
-	 (js-code 
-	   (string-append "(("   (para-list->string para-list) ")"
-			  " => " (body-list->string body-list) ")"))]
+  (let* [(para-list (list-ref expr 1))
+	 (body-list (cddr expr))]
     (set! env (leave-scope env))
-    (emit-code js-code)))
+    (string-append "(("   (para-list->string para-list) ")"
+		   " => {" (body-list->string body-list) "})")))
 
 (define (operator? expr)
+;  (display "operator? ==> ") (display expr) (display "\n")
   (cond [(symbol? expr) (and
 			  (env-symb-exist? env expr)
 			  (symb-type-eq? env expr 'lambda))]
 	[else (lambda-expr? expr)]))
 
 (define (apply-expr? expr)
+;  (display "apply-expr? ==> ") (display expr ) (display "\n")
   (and (list? expr)
        (> (length expr) 0)
        (operator? (list-ref expr 0))))
 
 (define (apply-expr->js expr)
-  (cond [(not (apply-expr? expr)) (error "Undefined expression type:" expr)]
+;  (display "apply-expr->js ==>") (display expr) (display "\n")
+  (cond [(not (apply-expr? expr)) (error #f "error with apply-expr->js" expr)]
 	[(tagged-expr? '= expr) (js-infix "===" expr)]
         [(tagged-expr? '+ expr) (js-infix "+" expr)]
         [(tagged-expr? '- expr) (js-infix "-" expr)]

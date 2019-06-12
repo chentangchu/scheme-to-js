@@ -12,7 +12,7 @@
         (helper (cdr strs) (car strs))))
 
 (define (list-ref-last l)
-  (if (null? (cadr l))
+  (if (null? (cdr l))
       (car l)
       (list-ref-last (cdr l))))
 

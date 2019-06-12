@@ -45,5 +45,6 @@
     (not (null? ref))))
 
 (define (symb-type-eq? env symb type)
-  (let [(ref-type (env-symb-ref env symb))]
-    (eq? ref-type type)))
+  (let* [(entry (env-symb-ref env symb))
+	 (entry-type (entry-value entry))]
+    (eq? entry-type type)))
