@@ -12,9 +12,10 @@
 (set! env (encounter-symb env '/ 'lambda))
 (set! env (encounter-symb env 'null? 'lambda))
 (set! env (encounter-symb env 'get 'lambda))
+(set! env (encounter-symb env 'cons 'lambda))
 (set! env (encounter-symb env 'car 'lambda))
 (set! env (encounter-symb env 'cdr 'lambda))
-(set! env (encounter-symb env 'console.log 'lambda))
+(set! env (encounter-symb env 'display 'lambda))
 
 (define-syntax scheme->js
     (syntax-rules ()
@@ -109,9 +110,10 @@
 
 (define (operator? expr)
 ;  (display "operator? ==> ") (display expr) (display "\n")
-  (cond [(symbol? expr) (and
-			  (env-symb-exist? env expr)
-			  (symb-type-eq? env expr 'lambda))]
+  (cond [(symbol? expr)
+	 #t]
+;	 (and (env-symb-exist? env expr)
+;	      (symb-type-eq? env expr 'lambda))]
 	[else (lambda-expr? expr)]))
 
 (define (apply-expr? expr)
@@ -120,24 +122,47 @@
        (> (length expr) 0)
        (operator? (list-ref expr 0))))
 
+;(define (math-expr? expr)
+;  (let [(op (list-ref expr 0))
+;	(rand (cdr expr))]
+;    (or (eq? op '+)
+;	(eq? op '-)
+;	(eq? op '*)
+;	(and (eq? op '/)
+;	     (> (length ) 0)))))
+
 (define (apply-expr->js expr)
-;  (display "apply-expr->js ==>") (display expr) (display "\n")
-  (cond [(not (apply-expr? expr)) (error #f "error with apply-expr->js" expr)]
-	[(tagged-expr? '= expr) (js-infix "===" expr)]
-        [(tagged-expr? '+ expr) (js-infix "+" expr)]
-        [(tagged-expr? '- expr) (js-infix "-" expr)]
-        [(tagged-expr? '* expr) (js-infix "*" expr)]
-        [(tagged-expr? '/ expr) (js-infix "/" expr)]
-        [(tagged-expr? 'null? expr) (null?-expr->js expr)]
-        [(tagged-expr? 'get expr) (get-expr->js expr)]
-        [(tagged-expr? 'car expr) (car-expr->js expr)]
-        [(tagged-expr? 'cdr expr) (cdr-expr->js expr)]
-	[else 
-	  (let* [(op (car expr))
-		 (rand (cdr expr))
-		 (eval-op (eval-expr->js op))
-		 (eval-rand (map eval-expr->js rand))]
-	    (string-append eval-op "(" (string-join eval-rand ",") ")"))]))
+  ;(display "apply-expr->js ==>") (display expr) (display "\n")
+  (if (apply-expr? expr)
+      (let [(op (list-ref expr 0))
+	    (rand (cdr expr))]
+	(cond [(tagged-expr? '= expr) (js-infix "===" expr)]
+	      [(tagged-expr? '+ expr) (js-infix "+" expr)]
+	      [(tagged-expr? '- expr) (js-infix "-" expr)]
+	      [(tagged-expr? '* expr) (js-infix "*" expr)]
+	      [(tagged-expr? '/ expr) (js-infix "/" expr)]
+	      [(tagged-expr? 'null? expr) (null?-expr->js expr)]
+	      [(tagged-expr? 'get expr) (get-expr->js expr)]
+	      [(tagged-expr? 'car expr) (car-expr->js expr)]
+	      [(tagged-expr? 'cdr expr) (cdr-expr->js expr)]
+
+	      [(eq? op 'list)
+	       (apply-expr->js (cons 'Array rand))]
+
+	      [(eq? op 'display)
+	       (apply-expr->js (cons 'console.log rand))]
+
+	      [(eq? op 'cons) 
+	       (if (= (length rand) 2)
+		   (apply-expr->js (cons 'Array rand))
+		   (error #f "too many arguments with operator cons"))]
+	      [else
+		(let* [(op (car expr))
+		       (rand (cdr expr))
+		       (eval-op (eval-expr->js op))
+		       (eval-rand (map eval-expr->js rand))]
+		  (string-append eval-op "(" (string-join eval-rand ",") ")"))]))
+      (error #f "error with apply-expr->js" expr)))
 
 (define (js-infix op expr)
     (string-append
@@ -149,7 +174,7 @@
 
 (define (null?-expr->js expr)
     (let [(ls (scheme->js* (cadr expr)))]
-        (string-append "(0 === (" ls ").length)")))
+        (string-append "Array.isArray(" ls ") && (0 === (" ls ").length)")))
 
 (define (get-expr->js expr)
     (let [(ls (scheme->js* (cadr expr)))

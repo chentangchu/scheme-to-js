@@ -40,4 +40,4 @@
 (bash echo "(scheme->js ((lambda () " >> $scm2js-filename)
 (bash cat $filename >> $scm2js-filename)
 (bash echo " #t)))" >> $scm2js-filename)
-(bash "scheme" --script $scm2js-filename)
+(bash "scheme" --script $scm2js-filename \| uglifyjs --beautify)
