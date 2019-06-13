@@ -1,6 +1,7 @@
 ; A quick macro so we don't need to quote the body
 (load "lib.scm")
 (load "env.scm")
+(load "macro-expand.scm")
 
 (define env (make-env))
 
@@ -20,7 +21,7 @@
 (define-syntax scheme->js
     (syntax-rules ()
         [(_ expr)
-         (emit-code (scheme->js* (quote expr)))]))
+         (emit-code (scheme->js* (macro-expand (quote expr))))]))
 
 (define (scheme->js* expr)
   (cond [(define-expr? expr) (define-expr->js expr)]
@@ -154,7 +155,7 @@
 
 	      [(eq? op 'cons) 
 	       (if (= (length rand) 2)
-		   (apply-expr->js (cons 'Array rand))
+		   (cons-expr->js rand)
 		   (error #f "too many arguments with operator cons"))]
 	      [else
 		(let* [(op (car expr))
@@ -187,3 +188,10 @@
 (define (cdr-expr->js expr)
     (let [(ls (scheme->js* (cadr expr)))]
         (string-append "(" ls ").slice(1)")))
+
+(define (cons-expr->js rand)
+  (let* [(front (list-ref rand 0))
+	 (back (list-ref rand 1))
+	 (exp-front (eval-expr->js front))
+	 (exp-back  (eval-expr->js back))]
+    (string-append "[" exp-front "].concat(" exp-back ")")))
