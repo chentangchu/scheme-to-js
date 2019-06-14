@@ -19,3 +19,9 @@
 (define (tagged-expr? tag expr)
     (and (pair? expr)
          (eq? (car expr) tag)))
+
+(define (fold l p f)
+  (if (null?) p
+      (f (car l) (fold (cdr l) p f))))
+
+
